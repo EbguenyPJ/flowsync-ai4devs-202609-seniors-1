@@ -7,7 +7,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 FlowSync: monorepo TypeScript de punta a punta con dos proyectos independientes (cada uno con su propio `package.json` y `node_modules`; no hay workspace raíz):
 
 - `backend/` — API en **AdonisJS 7** (Lucid ORM sobre SQLite, VineJS, auth por access tokens). Ya existe y en el ejercicio de la sesión 1 **no se modifica**: solo se lee.
-- `frontend/` — **React 19 + Vite 8**, todavía el scaffold por defecto de Vite (`src/App.tsx`). Aquí es donde se trabaja. Aún no tiene router, Tailwind ni shadcn/ui; se formatea con Prettier (`.prettierrc.json`: sin `;`, comillas simples), que un hook de `.claude/settings.json` ejecuta tras cada Edit/Write en `frontend/`; el ticket pide usar shadcn/ui (se copia al repo, no es una dependencia).
+- `frontend/` — **React 19 + Vite 8** con **react-router 8** (modo librería), **Tailwind v4** (`@tailwindcss/vite`) y **shadcn/ui** (estilo `base-nova`, sobre Base UI). Aquí es donde se trabaja. Se formatea con Prettier (`.prettierrc.json`: sin `;`, comillas simples), que un hook de `.claude/settings.json` ejecuta tras cada Edit/Write en `frontend/`.
+
+### Arquitectura del frontend
+
+- Imports con alias `@/` → `frontend/src/` (definido en `tsconfig*.json` y `vite.config.ts`).
+- `src/components/ui/`: componentes shadcn copiados al repo; se añaden con `npx shadcn@latest add <nombre>` (no a mano) y se editan libremente. Usan `cn` del paquete `cn` (de shadcn).
+- `src/lib/api.ts`: `apiFetch<T>()` es la única vía para hablar con el backend. Base `VITE_API_URL` (por defecto `http://localhost:3333/api/v1`), desenvuelve `{ data }` y convierte cualquier fallo en `ApiError { status, fieldErrors, rules }` (status `0` = sin conexión). Las pantallas deciden el mensaje por `status` y por la regla VineJS (`rules[campo]`), nunca muestran el `message` en inglés del backend.
+- `src/lib/auth.tsx`: `AuthProvider` / `useAuth()`; el token vive en `localStorage` (`flowsync.token`).
+- Rutas en `src/App.tsx`: `GuestRoute` (`/login`, `/signup`) y `ProtectedRoute` (`/profile`) en `src/components/route-guards.tsx`; pantallas en `src/pages/*-page.tsx`. Textos de UI en español.
 
 El `README.md` es la lección del ejercicio (generado, no se edita a mano). `prompts.md` es la plantilla donde el alumno registra los prompts lanzados.
 
