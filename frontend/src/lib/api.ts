@@ -1,4 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api/v1'
+const REQUEST_TIMEOUT_MS = 15_000
+const CONNECTION_ERROR =
+  'No se pudo conectar con el servidor. Inténtalo de nuevo.'
 
 export type User = {
   id: number
@@ -61,12 +64,11 @@ export async function apiFetch<T>(
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      // Sin límite, un backend colgado dejaría los botones en «Enviando…» para siempre.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   } catch {
-    throw new ApiError(
-      0,
-      'No se pudo conectar con el servidor. Inténtalo de nuevo.',
-    )
+    throw new ApiError(0, CONNECTION_ERROR)
   }
 
   const payload = await response.json().catch(() => null)
@@ -83,5 +85,12 @@ export async function apiFetch<T>(
     )
   }
 
-  return payload?.data as T
+  // 2xx sin JSON (p. ej. VITE_API_URL apuntando a otro servidor, o timeout
+  // leyendo el cuerpo): mejor un error claro que un `undefined` silencioso.
+  if (payload === null || typeof payload !== 'object') {
+    throw new ApiError(response.status, CONNECTION_ERROR)
+  }
+
+  // Casi todo va envuelto en { data }; logout devuelve { message } sin envolver.
+  return ('data' in payload ? payload.data : payload) as T
 }

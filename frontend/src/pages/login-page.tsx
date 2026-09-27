@@ -32,6 +32,8 @@ export function LoginPage() {
         if (error.fieldErrors.password)
           messages.password = 'Introduce tu contraseña.'
         setFieldErrors(messages)
+        if (Object.keys(messages).length === 0)
+          setFormError('Revisa los datos del formulario.')
       } else if (error instanceof ApiError && error.status === 0) {
         setFormError(error.message)
       } else {

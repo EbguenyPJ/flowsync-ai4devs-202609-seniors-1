@@ -29,7 +29,7 @@ export function ProfilePage() {
       .catch((err: unknown) => {
         if (ignore) return
         // Token caducado o revocado: sin sesión, ProtectedRoute manda a /login.
-        if (err instanceof ApiError && err.status === 401) clearSession()
+        if (err instanceof ApiError && err.status === 401) clearSession(token)
         else if (err instanceof ApiError && err.status === 0)
           setError(err.message)
         else setError('No se pudo cargar tu perfil. Inténtalo de nuevo.')

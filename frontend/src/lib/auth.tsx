@@ -40,8 +40,11 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>
   signup: (input: SignupInput) => Promise<void>
   logout: () => Promise<void>
-  /** Olvida el token sin llamar al backend (p. ej. tras un 401). */
-  clearSession: () => void
+  /**
+   * Olvida `rejected` sin llamar al backend (p. ej. tras un 401). Si otra
+   * pestaña ya guardó un token nuevo, ese no se borra.
+   */
+  clearSession: (rejected: string | null) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -87,7 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token, saveToken])
 
-  const clearSession = useCallback(() => saveToken(null), [saveToken])
+  const clearSession = useCallback((rejected: string | null) => {
+    if (readToken() === rejected) writeToken(null)
+    setToken(null)
+  }, [])
 
   const value = useMemo(
     () => ({ token, login, signup, logout, clearSession }),
