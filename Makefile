@@ -11,6 +11,15 @@ SHELL := /bin/sh
 
 NODE_MAJOR_MIN := 24
 
+# Los dos targets son de desarrollo. Un NODE_ENV=production heredado del shell haría que
+# `npm ci` omitiera devDependencies (y `node ace` no arrancaría) y que generate:key no
+# escribiera la clave.
+export NODE_ENV := development
+
+# APP_KEY con contenido real: `APP_KEY=`, `APP_KEY=""`, solo espacios o un \r de un .env
+# con CRLF no cuentan (con ellos el backend no arranca).
+APP_KEY_SET := ^APP_KEY=["]?[A-Za-z0-9_-]
+
 .DEFAULT_GOAL := help
 .PHONY: help setup start check-node
 
@@ -25,6 +34,11 @@ check-node:
 	@command -v npm >/dev/null 2>&1 || { echo "Error: no se encuentra npm." >&2; exit 1; }
 	@node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= $(NODE_MAJOR_MIN) ? 0 : 1)' || { \
 		echo "Error: se necesita Node.js $(NODE_MAJOR_MIN)+ (tienes $$(node -v))." >&2; exit 1; }
+# En WSL, el PATH incluye el de Windows: un node/npm de /mnt/c instalaría node_modules de
+# Windows. Tienen que ser los de Linux.
+	@for bin in node npm; do case "$$(command -v $$bin)" in /mnt/*) \
+		echo "Error: $$bin apunta a Windows ($$(command -v $$bin)). Instala Node.js dentro de WSL (p. ej. con nvm)." >&2; \
+		exit 1;; esac; done
 
 # Se puede repetir sin miedo: no pisa un .env existente ni regenera una APP_KEY ya puesta.
 setup: check-node
@@ -36,8 +50,10 @@ setup: check-node
 	@if [ -f backend/.env ]; then echo "backend/.env ya existe, no se toca"; \
 	else cp backend/.env.example backend/.env && echo "backend/.env creado desde .env.example"; fi
 	@echo "==> APP_KEY"
-	@if grep -Eq '^APP_KEY=.+' backend/.env; then echo "APP_KEY ya definida, no se regenera"; \
-	else cd backend && node ace generate:key; fi
+	@if grep -Eq '$(APP_KEY_SET)' backend/.env; then echo "APP_KEY ya definida, no se regenera"; \
+	else (cd backend && node ace generate:key) && \
+		grep -Eq '$(APP_KEY_SET)' backend/.env || { \
+		echo "Error: no se pudo escribir APP_KEY en backend/.env." >&2; exit 1; }; fi
 	@echo "==> Migraciones"
 	cd backend && node ace migration:run
 	@echo "Listo. Ejecuta 'make start'."
@@ -47,6 +63,7 @@ setup: check-node
 # huérfanos ocupando los puertos. El script cierra ambos con Ctrl+C y, si uno se cae,
 # para también el otro.
 start: check-node
-	@[ -d backend/node_modules ] && [ -d frontend/node_modules ] && [ -f backend/.env ] || { \
+	@[ -d backend/node_modules ] && [ -d frontend/node_modules ] && [ -f backend/.env ] && \
+		grep -Eq '$(APP_KEY_SET)' backend/.env || { \
 		echo "Error: falta la instalación. Ejecuta 'make setup' primero." >&2; exit 1; }
 	@node scripts/dev.mjs

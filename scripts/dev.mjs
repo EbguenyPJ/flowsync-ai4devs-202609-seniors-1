@@ -19,8 +19,9 @@ const services = [
   { name: 'frontend', cwd: join(root, 'frontend') },
 ]
 
+const POLL_MS = 200
+
 let shuttingDown = false
-let exitCode = 0
 
 for (const service of services) {
   // stdin ignorado: un grupo en segundo plano que lee de la terminal se para (SIGTTIN).
@@ -29,46 +30,48 @@ for (const service of services) {
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: true,
   })
-  service.running = true
 
   service.child.on('error', (error) => {
     console.error(`[${service.name}] no se pudo arrancar: ${error.message}`)
-    service.running = false
     shutdown(1)
   })
 
+  // Que salga npm no significa que haya salido el servidor (vite, ace serve y su
+  // hijo siguen en el grupo): por eso el cierre mira el grupo, no este evento.
   service.child.on('exit', (code, signal) => {
-    service.running = false
-    if (!shuttingDown) {
-      console.error(
-        `[${service.name}] terminó (${signal ?? `código ${code}`}); parando el resto.`,
-      )
-      shutdown(code || 1)
-    } else if (services.every((s) => !s.running)) {
-      process.exit(exitCode)
-    }
+    if (shuttingDown) return
+    console.error(
+      `[${service.name}] terminó (${signal ?? `código ${code}`}); parando el resto.`,
+    )
+    shutdown(code || 1)
   })
 }
 
+// Señal a todo el grupo del servicio. Devuelve false si ya no queda ningún proceso en él.
 function signalGroup(service, signal) {
-  if (!service.running) return
+  if (service.child.pid === undefined) return false
   try {
     process.kill(-service.child.pid, signal)
+    return true
   } catch {
-    // El grupo ya no existe.
+    return false
   }
 }
 
 function shutdown(code) {
   if (shuttingDown) return
   shuttingDown = true
-  exitCode = code
   for (const service of services) signalGroup(service, 'SIGINT')
-  if (services.every((s) => !s.running)) process.exit(exitCode)
-  setTimeout(() => {
-    for (const service of services) signalGroup(service, 'SIGKILL')
-    process.exit(exitCode)
-  }, GRACE_MS).unref()
+
+  const deadline = Date.now() + GRACE_MS
+  const timer = setInterval(() => {
+    // La señal 0 no hace nada: solo comprueba si el grupo sigue vivo.
+    const alive = services.filter((service) => signalGroup(service, 0))
+    if (alive.length > 0 && Date.now() < deadline) return
+    for (const service of alive) signalGroup(service, 'SIGKILL')
+    clearInterval(timer)
+    process.exit(code)
+  }, POLL_MS)
 }
 
 process.on('SIGINT', () => shutdown(0))

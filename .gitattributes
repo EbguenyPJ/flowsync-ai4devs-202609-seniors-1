@@ -1,3 +1,4 @@
 # make no admite CRLF en las recetas: forzar LF aunque se clone desde Windows.
 Makefile text eol=lf
 *.sh text eol=lf
+.env.example text eol=lf
