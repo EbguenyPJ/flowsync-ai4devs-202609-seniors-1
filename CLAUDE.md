@@ -23,6 +23,15 @@ Requiere **Node.js 24+** (con Node 20 el backend falla con `Unknown file extensi
 
 ## Comandos
 
+Desde la raíz (macOS, Linux o Windows vía WSL; en WSL, clonar dentro de `~` y no en `/mnt/c`, y `sudo apt install make` si falta):
+
+```bash
+make setup   # npm ci en ambos, backend/.env si no existe, APP_KEY si está vacía, migraciones (repetible)
+make start   # backend :3333 + frontend :5173 a la vez; Ctrl+C cierra los dos
+```
+
+`make start` lo orquesta `scripts/dev.mjs`, no un `a & b & wait`: en el sh de make los procesos en segundo plano ignoran SIGINT y `ace serve --hmr` ignora SIGTERM, así que quedaban servidores huérfanos. Si uno de los dos muere, el script para el otro. `.gitattributes` fuerza LF en el `Makefile` (con CRLF, make falla en WSL).
+
 Backend (`cd backend`):
 
 ```bash
@@ -50,7 +59,7 @@ npm run lint     # oxlint (.oxlintrc.json)
 npm run format   # prettier --write .
 ```
 
-Backend y frontend se levantan en terminales separadas.
+Sin `make`, backend y frontend se levantan en terminales separadas.
 
 ## Arquitectura del backend
 
